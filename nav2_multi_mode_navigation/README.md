@@ -9,6 +9,8 @@ Initial implementation for three Nav2 navigation modes:
 
 A plain `nav_msgs/msg/Path` has no mission identifier. This package defines `MissionPath` (`mission_id` + `nav_msgs/Path`) so the BT node can reject paths belonging to another mission. Publish fresh, non-empty paths with a non-zero `path.header.stamp`, in a frame configured consistently with Nav2 (normally `map`).
 
+For external-path mode, the mission dispatcher publishes the active ID on `/active_mission_id` as `std_msgs/msg/String` using **reliable + transient-local QoS**. It then publishes a `MissionPath` on `/mission_path` with the same ID. The BT node only passes a matching, fresh path to `FollowPath`. This avoids relying on a custom blackboard entry that a standard `NavigateToPose` goal cannot set.
+
 ## Build on Ubuntu 24.04 / ROS 2 Jazzy
 
 ```bash
@@ -24,9 +26,8 @@ source install/setup.bash
 ## Configure Nav2
 
 1. Merge the `plugin_lib_names` entries from `config/bt_navigator_plugins.yaml` into your existing `bt_navigator.ros__parameters.plugin_lib_names` list. **Do not replace the full existing list** with this small fragment.
-2. For route-graph navigation, ensure the installed Jazzy Nav2 route BT plugin library `nav2_compute_and_track_route_bt_node` is also in that list, and configure/activate the Route Server with a valid route graph.
+2. For route-graph navigation, ensure `nav2_compute_and_track_route_bt_node` is also in that list, and configure/activate the Route Server with a valid route graph.
 3. Select the desired XML using the `behavior_tree` field of the `NavigateToPose` goal.
-4. For external-path navigation, the caller must set the BT blackboard entry `mission_id` before the tree runs. The input topic is `/mission_path`, type `nav2_multi_mode_navigation/msg/MissionPath`.
 
 The free-navigation XML here is deliberately minimal for initial bring-up; use the installed Jazzy default tree for production recovery/replanning behavior.
 
