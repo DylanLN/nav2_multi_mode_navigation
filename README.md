@@ -1,54 +1,13 @@
 # Nav2 Multi-Mode Navigation
 
-A ROS 2 Jazzy package set for switching between three navigation modes while reusing a single Nav2 navigation stack.
+ROS 2 Jazzy / Ubuntu 24.04 package for integrating three navigation modes into one Nav2 stack:
 
-## Target platform
+- **Free navigation** through a selectable Nav2 behavior tree.
+- **Route-graph navigation** using the Jazzy Route Server's `ComputeAndTrackRoute` BT action.
+- **External path following** through the custom `GetPathFromTopic` BT plugin, with mission-ID matching and path freshness checks.
 
-- Ubuntu 24.04
-- ROS 2 Jazzy
-- Nav2 (Jazzy)
-- C++ / BehaviorTree.CPP plugins
+The ROS 2 package is in [`nav2_multi_mode_navigation/`](nav2_multi_mode_navigation/). It includes the custom `MissionPath` message, behavior trees, BT plugin registration, a Nav2 bringup wrapper, a mode-selecting `NavigateToPose` client, and an external-path test publisher.
 
-## Navigation modes
+See the [package README](nav2_multi_mode_navigation/README.md) for build instructions, parameter integration, launch commands, test procedures, and known limitations.
 
-1. **Free navigation** — use the standard Nav2 `NavigateToPose` behavior tree to navigate to a goal pose.
-2. **Route navigation** — use the Nav2 Route Server and the Jazzy route-graph behavior tree to navigate along a configured route graph.
-3. **External path following** — obtain a `nav_msgs/msg/Path` from a dedicated topic via a custom BT action, validate that it belongs to the active mission and is fresh, then execute it with Nav2's `FollowPath` action.
-
-## Design principles
-
-- Reuse one Nav2 planner/controller/costmap/smoother/behavior-server stack.
-- Select the navigation mode through the `behavior_tree` field of a `NavigateToPose` goal, or through a thin mission API that maps a mode to a known BT XML.
-- Do not treat `NavigateToPose` as a transport for arbitrary paths; external paths use a separate topic and are consumed by the custom BT node.
-- Handle mission identity, path freshness, cancellation, and mode switching explicitly.
-- Keep custom BT nodes small and testable; avoid duplicating Nav2 servers.
-
-## Planned package layout
-
-```text
-nav2_multi_mode_navigation/
-├── README.md
-├── nav2_multi_mode_navigation/
-│   ├── CMakeLists.txt
-│   ├── package.xml
-│   ├── include/nav2_multi_mode_navigation/
-│   ├── src/
-│   ├── behavior_trees/
-│   ├── config/
-│   ├── launch/
-│   └── test/
-└── docs/
-```
-
-## Implementation status
-
-This repository is being scaffolded. The architecture and package interfaces must be verified against the installed ROS 2 Jazzy/Nav2 versions before claiming deployment readiness. Hardware-specific frames, topics, route graph data, and controller parameters remain deployment configuration.
-
-## Initial development sequence
-
-1. Confirm Jazzy/Nav2 dependencies and package interfaces.
-2. Add the package metadata, build system, and baseline configuration.
-3. Add the external-path BT action with timeout/freshness/mission checks.
-4. Add and validate the three behavior trees.
-5. Add launch files and tests for cancellation and mode switching.
-6. Run `colcon build` and integration tests on Ubuntu 24.04 + ROS 2 Jazzy.
+**Important:** `config/bt_navigator_plugins.yaml` is a plugin-list fragment, not a complete Nav2 parameter file. Merge its entries into your robot's existing BT Navigator configuration and preserve standard Nav2 plugins. The launch wrapper expects a complete robot/simulator-specific Nav2 params file, map, TF, odometry and sensor configuration.
