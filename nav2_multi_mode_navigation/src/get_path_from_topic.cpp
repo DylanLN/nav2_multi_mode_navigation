@@ -1,9 +1,10 @@
 #include "nav2_multi_mode_navigation/get_path_from_topic.hpp"
 
 #include <algorithm>
+#include <cstdint>
+#include <functional>
 #include <memory>
-#include <stdexcept>
-#include <utility>
+#include <string>
 
 #include "behaviortree_cpp/bt_factory.h"
 
@@ -15,7 +16,7 @@ GetPathFromTopic::GetPathFromTopic(
   const BT::NodeConfiguration & config)
 : BT::StatefulActionNode(name, config)
 {
-  // Nav2's BT blackboard exposes the ROS node under the "node" key.
+  // This is the same blackboard key and node type used by Nav2's BT selector nodes.
   node_ = config.blackboard->get<rclcpp::Node::SharedPtr>("node");
 
   std::string topic = "/mission_path";
@@ -25,10 +26,21 @@ GetPathFromTopic::GetPathFromTopic(
   timeout_ms_ = std::max(1, timeout_ms_);
   max_age_ms_ = std::max(1, max_age_ms_);
 
+  // Use a private callback group/executor so callback progress does not depend on
+  // the BT Navigator's main executor spinning this subscription at the right time.
+  callback_group_ = node_->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive, false);
+  callback_group_executor_.add_callback_group(
+    callback_group_, node_->get_node_base_interface());
+
+  rclcpp::SubscriptionOptions options;
+  options.callback_group = callback_group_;
   subscription_ = node_->create_subscription<
     nav2_multi_mode_navigation::msg::MissionPath>(
-    topic, rclcpp::QoS(1).reliable(),
-    std::bind(&GetPathFromTopic::pathCallback, this, std::placeholders::_1));
+    topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
+    std::bind(&GetPathFromTopic::pathCallback, this, std::placeholders::_1),
+    options);
+  callback_group_executor_.spin_some(std::chrono::nanoseconds(1));
 }
 
 BT::PortsList GetPathFromTopic::providedPorts()
@@ -61,6 +73,8 @@ BT::NodeStatus GetPathFromTopic::onStart()
 
 BT::NodeStatus GetPathFromTopic::onRunning()
 {
+  callback_group_executor_.spin_some();
+
   nav_msgs::msg::Path candidate;
   bool ready = false;
   {
@@ -78,11 +92,17 @@ BT::NodeStatus GetPathFromTopic::onRunning()
       return BT::NodeStatus::FAILURE;
     }
 
-    const auto stamp = rclcpp::Time(candidate.header.stamp);
-    if (candidate.header.stamp.sec == 0 && candidate.header.stamp.nanosec == 0) {
-      RCLCPP_WARN(node_->get_logger(), "Path has a zero timestamp; rejecting stale/untimestamped input");
+    if (candidate.header.frame_id.empty()) {
+      RCLCPP_ERROR(node_->get_logger(), "Path for mission '%s' has an empty frame_id",
+        expected_mission_id_.c_str());
       return BT::NodeStatus::FAILURE;
     }
+    if (candidate.header.stamp.sec == 0 && candidate.header.stamp.nanosec == 0) {
+      RCLCPP_WARN(node_->get_logger(), "Path has a zero timestamp; rejecting untimestamped input");
+      return BT::NodeStatus::FAILURE;
+    }
+
+    const auto stamp = rclcpp::Time(candidate.header.stamp, node_->get_clock()->get_clock_type());
     const auto age = (node_->now() - stamp).nanoseconds();
     if (age < 0 || age > static_cast<int64_t>(max_age_ms_) * 1000000LL) {
       RCLCPP_WARN(node_->get_logger(), "Path for mission '%s' is stale or has a future timestamp",
