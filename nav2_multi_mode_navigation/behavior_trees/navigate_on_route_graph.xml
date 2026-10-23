@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <!-- Route Server must be configured and the corresponding Nav2 route BT plugin
+       library must be loaded by bt_navigator. -->
+  <BehaviorTree ID="MainTree">
+    <ComputeAndTrackRoute goal="{goal}" use_poses="true"
+      error_code_id="{route_error_code}" error_msg="{route_error_msg}"/>
+  </BehaviorTree>
+</root>
