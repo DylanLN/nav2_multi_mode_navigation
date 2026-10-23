@@ -28,7 +28,7 @@ target_include_directories(${PROJECT_NAME}_bt_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(${PROJECT_NAME}_bt_node
-  rclcpp nav_msgs behaviortree_cpp
+  rclcpp nav_msgs std_msgs behaviortree_cpp
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(${PROJECT_NAME}_bt_node "${cpp_typesupport_target}")
@@ -39,7 +39,7 @@ install(TARGETS ${PROJECT_NAME}_bt_node
   RUNTIME DESTINATION bin
 )
 install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY behavior_trees config launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY behavior_trees config DESTINATION share/${PROJECT_NAME})
 
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME}_bt_node)
