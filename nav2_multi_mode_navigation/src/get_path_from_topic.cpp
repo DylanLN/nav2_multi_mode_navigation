@@ -74,7 +74,7 @@ BT::NodeStatus GetPathFromTopic::onStart()
     received_ = false;
     latest_mission_id_.clear();
     latest_path_ = nav_msgs::msg::Path{};
-    active_mission_id_.clear();
+    // Keep active_mission_id_: transient-local delivery may have completed before onStart().
   }
   deadline_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms_);
   return onRunning();
