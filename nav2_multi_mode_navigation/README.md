@@ -1,15 +1,15 @@
 # nav2_multi_mode_navigation (ROS 2 Jazzy)
 
-Initial implementation scaffold for three Nav2 navigation modes:
-- free navigation via a standard Nav2 BT;
-- route-graph navigation using Nav2 Route Server / its Jazzy BT nodes;
-- externally generated path following using a custom BT action.
+Initial implementation for three Nav2 navigation modes:
+- **Free navigation:** `behavior_trees/navigate_to_pose.xml` (minimal bring-up tree).
+- **Route-graph navigation:** `behavior_trees/navigate_on_route_graph.xml` using the Jazzy `ComputeAndTrackRoute` BT action.
+- **External path following:** `behavior_trees/navigate_with_external_path.xml` using a custom BT action and Nav2's `FollowPath`.
 
 ## Important interface choice
 
 A plain `nav_msgs/msg/Path` has no mission identifier. This package defines `MissionPath` (`mission_id` + `nav_msgs/Path`) so the BT node can reject paths belonging to another mission. Publish fresh, non-empty paths with a non-zero `path.header.stamp`, in a frame configured consistently with Nav2 (normally `map`).
 
-## Build
+## Build on Ubuntu 24.04 / ROS 2 Jazzy
 
 ```bash
 cd ~/your_ros2_ws/src
@@ -21,37 +21,22 @@ colcon build --packages-up-to nav2_multi_mode_navigation
 source install/setup.bash
 ```
 
-## Configure
+## Configure Nav2
 
-Merge `config/bt_navigator_plugins.yaml` into your existing Nav2 parameter file. Keep the other plugin names already required by your installed Nav2 configuration. Configure the selected BT XML through the `behavior_tree` field of a `NavigateToPose` goal.
+1. Merge the `plugin_lib_names` entries from `config/bt_navigator_plugins.yaml` into your existing `bt_navigator.ros__parameters.plugin_lib_names` list. **Do not replace the full existing list** with this small fragment.
+2. For route-graph navigation, ensure the installed Jazzy Nav2 route BT plugin library `nav2_compute_and_track_route_bt_node` is also in that list, and configure/activate the Route Server with a valid route graph.
+3. Select the desired XML using the `behavior_tree` field of the `NavigateToPose` goal.
+4. For external-path navigation, the caller must set the BT blackboard entry `mission_id` before the tree runs. The input topic is `/mission_path`, type `nav2_multi_mode_navigation/msg/MissionPath`.
 
-For the external-path tree, the caller must set the BT blackboard entry `mission_id` before the tree runs. The input path topic is `/mission_path`, type `nav2_multi_mode_navigation/msg/MissionPath`.
+The free-navigation XML here is deliberately minimal for initial bring-up; use the installed Jazzy default tree for production recovery/replanning behavior.
 
-## Publish a test message
-
-Once built and sourced, publish a message using a small ROS 2 publisher that fills:
-- `mission_id`: exactly the mission ID expected by the BT;
-- `path.header.frame_id`: a frame accepted by your Nav2 controller (typically `map`);
-- `path.header.stamp`: current ROS time;
-- `path.poses`: at least one valid pose.
-
-## Caveats for first validation
-
-- This scaffold has not been compiled against your machine's installed Jazzy packages yet.
-- The minimal free-navigation BT is a bring-up example, not a replacement for Nav2's full default tree with replanning and recovery.
-- Route graph navigation is intentionally left to the installed Jazzy Route Server BT and graph configuration; its exact XML should be copied from the installed Nav2 version before wiring it into a production mission dispatcher.
-- Verify that the installed Nav2 blackboard exposes `node` as `rclcpp::Node::SharedPtr`. If your installed Jazzy headers use a lifecycle-node pointer type, adjust the type to match.
-- The BT node waits asynchronously across BT ticks; the executor must continue processing the BT Navigator node's subscription callbacks.
-
-## Suggested first checks
+## First validation
 
 ```bash
 source /opt/ros/jazzy/setup.bash
 colcon build --packages-select nav2_multi_mode_navigation --event-handlers console_direct+
 ```
 
-If compilation fails, send the complete first compiler error and the output of:
-```bash
-ros2 pkg prefix nav2_behavior_tree
-grep -R 'blackboard->get.*node' /opt/ros/jazzy/include/nav2_behavior_tree
-```
+This repository has not yet been compiled on your target machine. The first compile is the source of truth for your exact installed Jazzy patch level. In particular, if the compiler reports a type mismatch for the BT blackboard `node` key, compare it with the installed Nav2 selector plugin headers/sources; the current implementation expects `rclcpp::Node::SharedPtr`.
+
+For route navigation, the BT action runs the Route Server's route-tracking action; it is not interchangeable with the standard `FollowPath` action. For external paths, the custom node waits asynchronously across BT ticks, checks the mission ID and path timestamp, and fails on timeout or stale/empty input.
