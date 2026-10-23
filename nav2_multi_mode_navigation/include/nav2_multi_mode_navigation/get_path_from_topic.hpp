@@ -29,6 +29,8 @@ private:
     nav2_multi_mode_navigation::msg::MissionPath::ConstSharedPtr message);
 
   rclcpp::Node::SharedPtr node_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_;
+  rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
   rclcpp::Subscription<nav2_multi_mode_navigation::msg::MissionPath>::SharedPtr subscription_;
   std::mutex mutex_;
   nav_msgs::msg::Path latest_path_;
