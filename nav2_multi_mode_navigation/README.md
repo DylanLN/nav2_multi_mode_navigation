@@ -1,43 +1,101 @@
-# nav2_multi_mode_navigation (ROS 2 Jazzy)
+# nav2_multi_mode_navigation
 
-Initial implementation for three Nav2 navigation modes:
-- **Free navigation:** `behavior_trees/navigate_to_pose.xml` (minimal bring-up tree).
-- **Route-graph navigation:** `behavior_trees/navigate_on_route_graph.xml` using the Jazzy `ComputeAndTrackRoute` BT action.
-- **External path following:** `behavior_trees/navigate_with_external_path.xml` using a custom BT action and Nav2's `FollowPath`.
+ROS 2 Jazzy / Ubuntu 24.04 package demonstrating three navigation modes on one Nav2 stack.
 
-## Important interface choice
+## Included
 
-A plain `nav_msgs/msg/Path` has no mission identifier. This package defines `MissionPath` (`mission_id` + `nav_msgs/Path`) so the BT node can reject paths belonging to another mission. Publish fresh, non-empty paths with a non-zero `path.header.stamp`, in a frame configured consistently with Nav2 (normally `map`).
+- `behavior_trees/navigate_to_pose.xml`: minimal free-navigation tree using `ComputePathToPose` and `FollowPath`.
+- `behavior_trees/navigate_on_route_graph.xml`: route-graph tree using Jazzy's `ComputeAndTrackRoute` action.
+- `behavior_trees/navigate_with_external_path.xml`: receives a mission-scoped path through the custom `GetPathFromTopic` BT action and passes it to Nav2 `FollowPath`.
+- `msg/MissionPath.msg`: a `mission_id` plus `nav_msgs/Path`.
+- `launch/multi_mode_navigation.launch.py`: wrapper around the standard `nav2_bringup/bringup_launch.py`.
+- `scripts/send_navigation_goal.py`: sends a `NavigateToPose` goal with the chosen behavior-tree XML.
+- `scripts/publish_mission_path.py`: repeatedly publishes a sample path for external-mode smoke tests.
+- `config/bt_navigator_plugins.yaml`: plugin-library overlay fragment, not a complete Nav2 parameter file.
 
-For external-path mode, the mission dispatcher publishes the active ID on `/active_mission_id` as `std_msgs/msg/String` using **reliable + transient-local QoS**. It then publishes a `MissionPath` on `/mission_path` with the same ID. The BT node only passes a matching, fresh path to `FollowPath`. This avoids relying on a custom blackboard entry that a standard `NavigateToPose` goal cannot set.
-
-## Build on Ubuntu 24.04 / ROS 2 Jazzy
+## Build
 
 ```bash
-cd ~/your_ros2_ws/src
-git clone https://github.com/DylanLN/nav2_multi_mode_navigation.git
-cd ..
+cd ~/code/nav2_ws
 source /opt/ros/jazzy/setup.bash
 rosdep install --from-paths src --ignore-src -r -y
-colcon build --packages-up-to nav2_multi_mode_navigation
+colcon build --packages-up-to nav2_multi_mode_navigation --event-handlers console_direct+
 source install/setup.bash
 ```
 
-## Configure Nav2
-
-1. Merge the `plugin_lib_names` entries from `config/bt_navigator_plugins.yaml` into your existing `bt_navigator.ros__parameters.plugin_lib_names` list. **Do not replace the full existing list** with this small fragment.
-2. For route-graph navigation, ensure `nav2_compute_and_track_route_bt_node` is also in that list, and configure/activate the Route Server with a valid route graph.
-3. Select the desired XML using the `behavior_tree` field of the `NavigateToPose` goal.
-
-The free-navigation XML here is deliberately minimal for initial bring-up; use the installed Jazzy default tree for production recovery/replanning behavior.
-
-## First validation
+Verify the interface and installed files:
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-colcon build --packages-select nav2_multi_mode_navigation --event-handlers console_direct+
+ros2 interface show nav2_multi_mode_navigation/msg/MissionPath
+ros2 pkg prefix nav2_multi_mode_navigation
+ros2 pkg executables nav2_multi_mode_navigation
 ```
 
-This repository has not yet been compiled on your target machine. The first compile is the source of truth for your exact installed Jazzy patch level. In particular, if the compiler reports a type mismatch for the BT blackboard `node` key, compare it with the installed Nav2 selector plugin headers/sources; the current implementation expects `rclcpp::Node::SharedPtr`.
+## Configure the BT Navigator
 
-For route navigation, the BT action runs the Route Server's route-tracking action; it is not interchangeable with the standard `FollowPath` action. For external paths, the custom node waits asynchronously across BT ticks, checks the mission ID and path timestamp, and fails on timeout or stale/empty input.
+Merge the two entries in `config/bt_navigator_plugins.yaml` into the existing `bt_navigator.ros__parameters.plugin_lib_names` list in your robot's **complete** Nav2 parameter YAML. Keep all standard Nav2 plugin libraries already in the list.
+
+Required additional libraries:
+
+- `nav2_multi_mode_navigation_bt_node`
+- `nav2_compute_and_track_route_bt_node` (only needed for route-graph mode)
+
+Do not pass `bt_navigator_plugins.yaml` directly as the full Nav2 parameter file. It contains only a fragment. See `config/README.md`.
+
+## Launch Nav2
+
+Use a valid map and a complete Nav2 parameter file for your robot or simulator:
+
+```bash
+ros2 launch nav2_multi_mode_navigation multi_mode_navigation.launch.py \
+  map:=/absolute/path/to/map.yaml \
+  params_file:=/absolute/path/to/complete_nav2_params.yaml \
+  use_sim_time:=false
+```
+
+This launch file brings up the standard Nav2 stack. It does not invent a robot-specific map, controller configuration, TF tree, sensor setup, or route graph. Ensure localization, TF, odometry, costmaps, controller IDs and goal-checker IDs match your platform.
+
+## Select a navigation mode
+
+The example goal client chooses a BT XML by setting `NavigateToPose.Goal.behavior_tree`. Run after Nav2 is active:
+
+```bash
+# Free navigation
+ros2 run nav2_multi_mode_navigation send_navigation_goal.py --mode free --x 2.0 --y 1.0 --yaw 0.0
+
+# Route-graph navigation (Route Server and graph must be configured and active)
+ros2 run nav2_multi_mode_navigation send_navigation_goal.py --mode route --x 2.0 --y 1.0
+
+# External path following (publish a matching MissionPath at the same time)
+ros2 run nav2_multi_mode_navigation send_navigation_goal.py --mode external --x 2.0 --y 1.0
+```
+
+Coordinates are in the selected frame (default `map`). The free-navigation tree is intentionally minimal for bring-up; it does not include the full default Nav2 recovery and replanning behavior tree. Use the installed Jazzy default tree as the basis for production deployments.
+
+## External-path protocol
+
+1. Publish `/active_mission_id` as `std_msgs/msg/String`, using reliable + transient-local QoS.
+2. Publish `/mission_path` as `nav2_multi_mode_navigation/msg/MissionPath`, using the same `mission_id`. The path publisher can use reliable + volatile QoS.
+3. Set `path.header.frame_id` to a frame Nav2 can transform (normally `map`), provide at least one pose, and stamp the path with the current ROS clock.
+4. The BT node waits up to `timeout_ms` (default 5000), rejects empty or stale paths, and requires the path mission ID to match the active ID. The default maximum age is `max_age_ms=3000`.
+
+For a smoke test, start an external-mode goal and, in another terminal, publish a short path repeatedly:
+
+```bash
+ros2 run nav2_multi_mode_navigation publish_mission_path.py \
+  --mission-id demo-001 --points '0,0;1,0;2,1' --frame map --duration 10
+```
+
+Replace these sample points with safe coordinates inside your test map. The test publisher is a diagnostic helper, not a production path planner. A mission dispatcher should coordinate the active ID, path publication, cancellation, and mission transitions.
+
+## Route-graph requirements
+
+Route mode needs the Jazzy Route Server configured with a valid graph and active lifecycle state. Loading the BT library alone is not sufficient. Check the installed Jazzy Route Server parameters and graph schema for your exact Nav2 version, and verify the route graph covers the requested start/goal. Route mode is separate from the regular `FollowPath` pipeline.
+
+## Current limitations
+
+- This is an integration scaffold, not a complete robot-specific bring-up. A map, localization, TF, odometry, sensors and controller configuration must come from your robot or simulation.
+- The free-navigation BT is a minimal example without the full Nav2 recovery/replanning tree.
+- The external-path demo publisher does not calculate collision-free paths; it only helps verify message transport and BT wiring.
+- Route Server graph configuration is deployment-specific and is not auto-generated by this package.
+- Compilation success verifies build/install, not runtime correctness on every Nav2 Jazzy patch release. Validate each mode in simulation before using a physical robot.
