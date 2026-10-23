@@ -1,6 +1,7 @@
-# Merge these parameters into the existing bt_navigator parameters; do not replace
-# the rest of your Nav2 configuration with this small fragment.
+# Merge these entries into the existing bt_navigator plugin_lib_names list.
+# Keep the standard Nav2 plugin libraries already configured for your install.
 bt_navigator:
   ros__parameters:
     plugin_lib_names:
       - nav2_multi_mode_navigation_bt_node
+      - nav2_compute_and_track_route_bt_node
