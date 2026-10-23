@@ -7,7 +7,6 @@ a plugin-only YAML fragment is a complete Nav2 configuration.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
@@ -21,6 +20,7 @@ def generate_launch_description():
     use_sim_time_arg = DeclareLaunchArgument("use_sim_time", default_value="false")
     autostart_arg = DeclareLaunchArgument("autostart", default_value="true")
     namespace_arg = DeclareLaunchArgument("namespace", default_value="")
+    use_namespace_arg = DeclareLaunchArgument("use_namespace", default_value="false")
     use_respawn_arg = DeclareLaunchArgument("use_respawn", default_value="false")
 
     bringup = IncludeLaunchDescription(
@@ -33,11 +33,12 @@ def generate_launch_description():
             "use_sim_time": LaunchConfiguration("use_sim_time"),
             "autostart": LaunchConfiguration("autostart"),
             "namespace": LaunchConfiguration("namespace"),
+            "use_namespace": LaunchConfiguration("use_namespace"),
             "use_respawn": LaunchConfiguration("use_respawn"),
         }.items(),
     )
 
     return LaunchDescription([
         map_arg, params_arg, use_sim_time_arg, autostart_arg,
-        namespace_arg, use_respawn_arg, bringup,
+        namespace_arg, use_namespace_arg, use_respawn_arg, bringup,
     ])
