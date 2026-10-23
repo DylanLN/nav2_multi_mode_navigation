@@ -3,7 +3,7 @@
   <BehaviorTree ID="MainTree">
     <Sequence name="external_path_mission">
       <GetPathFromTopic
-        mission_id="{mission_id}"
+        mission_id_topic="/active_mission_id"
         topic="/mission_path"
         timeout_ms="5000"
         max_age_ms="3000"
