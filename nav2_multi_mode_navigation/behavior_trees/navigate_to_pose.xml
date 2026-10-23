@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <!-- Minimal example only. For production, start from the installed Jazzy Nav2
+       navigate_to_pose behavior tree so recovery and replanning remain enabled. -->
+  <BehaviorTree ID="MainTree">
+    <Sequence name="free_navigation">
+      <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+      <FollowPath path="{path}" controller_id="FollowPath" goal_checker_id="general_goal_checker"/>
+    </Sequence>
+  </BehaviorTree>
+</root>
