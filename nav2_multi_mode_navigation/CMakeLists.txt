@@ -40,7 +40,11 @@ install(TARGETS ${PROJECT_NAME}_bt_node
 )
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY behavior_trees config launch DESTINATION share/${PROJECT_NAME})
-install(PROGRAMS scripts/send_navigation_goal.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS
+  scripts/send_navigation_goal.py
+  scripts/publish_mission_path.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME}_bt_node)
